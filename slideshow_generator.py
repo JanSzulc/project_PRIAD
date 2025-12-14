@@ -70,9 +70,9 @@ def generate_slideshow(image_paths: list, speed: float):
         try:
             img = load_and_resize_image(path, width, height)
             images.append(img)
-            print(f"  ✓ {path}")
+            print(f"{path}")
         except ValueError as e:
-            print(f"  ✗ {e}")
+            print(f"{e}")
 
     if len(images) < 2:
         print("Błąd: Potrzeba minimum 2 poprawnych zdjęć!")
@@ -141,7 +141,7 @@ def generate_slideshow(image_paths: list, speed: float):
         print(f"\r  [{bar}] {progress_pct:.1f}%", end="", flush=True)
 
     out.release()
-    print(f"\n\n✓ Zapisano: {output_path}")
+    print(f"\n\nZapisano: {output_path}")
     print(f"  Rozmiar: {os.path.getsize(output_path) / (1024 * 1024):.2f} MB")
 
 
