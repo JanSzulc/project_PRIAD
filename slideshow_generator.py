@@ -8,140 +8,184 @@ try:
     import cv2
     import numpy as np
 except ImportError:
-    print("Błąd: Wymagane biblioteki nie są zainstalowane.")
+    print("Blad: Wymagane biblioteki nie sa zainstalowane.")
     print("Zainstaluj je poleceniem: pip install opencv-python")
     sys.exit(1)
+
+DATASET_BASE = "dataset/test"
+
+COIN_FOLDERS = {
+    "1gr": "1gr",
+    "2gr": "2gr",
+    "5gr": "5gr",
+    "10gr": "10gr",
+    "20gr": "20gr",
+    "50gr": "50gr",
+    "1zl": "1zl",
+    "2zl": "2zl",
+    "5zl": "5zl",
+    "wrong": "wrong",
+}
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Generuje plik MP4 z losowo przewijanymi zdjęciami."
+        description="Generuje film MP4 z losowo wybranymi monetami przewijanymi od prawej do lewej.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Przykladowe uzycie:
+  %(prog)s -s 1.0 -1gr 5 -2gr 3
+  %(prog)s -s 2.0 -1zl 10 -wrong 5
+  %(prog)s --speed 0.5 -5gr 4 -10gr 4 -20gr 4
+
+Program wczytuje zdjecia z folderu dataset/test/ i tworzy film
+gdzie monety przewijaja sie poziomo od prawej do lewej strony.
+Zdjecia sa losowo wybierane z odpowiednich folderow i moga sie powtarzac.
+        """
     )
 
     parser.add_argument(
-        "--images", "-i",
-        nargs="+",
-        required=True,
-        help="Ścieżki do zdjęć (minimum 2)"
-    )
-
-    parser.add_argument(
-        "--speed", "-s",
+        "-s", "--speed",
         type=float,
         required=True,
-        help="Prędkość przewijania (1.0 = normalna, 2.0 = szybsza)"
+        help="Predkosc przewijania (1.0 = normalna, 2.0 = szybsza, 0.5 = wolniejsza)"
     )
+
+    parser.add_argument("-1gr", type=int, default=0, dest="gr1", metavar="N",
+                        help="Liczba monet 1 grosz")
+    parser.add_argument("-2gr", type=int, default=0, dest="gr2", metavar="N",
+                        help="Liczba monet 2 grosze")
+    parser.add_argument("-5gr", type=int, default=0, dest="gr5", metavar="N",
+                        help="Liczba monet 5 groszy")
+    parser.add_argument("-10gr", type=int, default=0, dest="gr10", metavar="N",
+                        help="Liczba monet 10 groszy")
+    parser.add_argument("-20gr", type=int, default=0, dest="gr20", metavar="N",
+                        help="Liczba monet 20 groszy")
+    parser.add_argument("-50gr", type=int, default=0, dest="gr50", metavar="N",
+                        help="Liczba monet 50 groszy")
+    parser.add_argument("-1zl", type=int, default=0, dest="zl1", metavar="N",
+                        help="Liczba monet 1 zloty")
+    parser.add_argument("-2zl", type=int, default=0, dest="zl2", metavar="N",
+                        help="Liczba monet 2 zlote")
+    parser.add_argument("-5zl", type=int, default=0, dest="zl5", metavar="N",
+                        help="Liczba monet 5 zlotych")
+    parser.add_argument("-wrong", type=int, default=0, dest="wrong", metavar="N",
+                        help="Liczba niepoprawnych monet")
 
     return parser.parse_args()
 
 
-def load_and_resize_image(image_path: str, target_width: int, target_height: int) -> np.ndarray:
+def get_images_from_folder(folder_name: str, count: int) -> list:
+    folder_path = os.path.join(DATASET_BASE, folder_name)
+
+    if not os.path.isdir(folder_path):
+        print(f"Ostrzezenie: Folder nie istnieje: {folder_path}")
+        return []
+
+    extensions = ["*.jpg", "*.jpeg", "*.png", "*.bmp"]
+    all_images = []
+    for ext in extensions:
+        all_images.extend(glob.glob(os.path.join(folder_path, ext)))
+
+    if not all_images:
+        print(f"Ostrzezenie: Brak zdjec w folderze: {folder_path}")
+        return []
+
+    return random.choices(all_images, k=count)
+
+
+def load_and_resize_image(image_path: str, target_height: int) -> np.ndarray:
     img = cv2.imread(image_path)
 
     if img is None:
-        raise ValueError(f"Nie można wczytać zdjęcia: {image_path}")
+        raise ValueError(f"Nie mozna wczytac zdjecia: {image_path}")
 
     h, w = img.shape[:2]
-    scale = min(target_width / w, target_height / h)
-    new_w, new_h = int(w * scale), int(h * scale)
+    scale = target_height / h
+    new_w = int(w * scale)
 
-    resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-
-    canvas = np.zeros((target_height, target_width, 3), dtype=np.uint8)
-    x_offset = (target_width - new_w) // 2
-    y_offset = (target_height - new_h) // 2
-    canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
-
-    return canvas
-
-
-def create_transition_frame(img1: np.ndarray, img2: np.ndarray, progress: float) -> np.ndarray:
-    return cv2.addWeighted(img1, 1 - progress, img2, progress, 0)
+    resized = cv2.resize(img, (new_w, target_height), interpolation=cv2.INTER_LANCZOS4)
+    return resized
 
 
 def generate_slideshow(image_paths: list, speed: float):
-    width, height = 1280, 720
+    frame_size = 720
     output_path = "slideshow.mp4"
 
-    print(f"Wczytywanie {len(image_paths)} zdjęć...")
+    print(f"Wczytywanie {len(image_paths)} zdjec...")
 
     images = []
     for path in image_paths:
         try:
-            img = load_and_resize_image(path, width, height)
+            img = load_and_resize_image(path, frame_size)
             images.append(img)
-            print(f"  ✓ {path}")
         except ValueError as e:
-            print(f"  ✗ {e}")
+            print(f"  Blad: {e}")
 
-    if len(images) < 2:
-        print("Błąd: Potrzeba minimum 2 poprawnych zdjęć!")
+    if len(images) < 1:
+        print("Blad: Brak poprawnych zdjec!")
         sys.exit(1)
 
-    print(f"\nWczytano {len(images)} zdjęć.")
-
-    fps = 30
-
-    base_display_time = 3.0
-    display_time = base_display_time / speed
-    transition_time = 0.5 / speed
-
-    frames_per_image = int(display_time * fps)
-    transition_frames = int(transition_time * fps)
-
-    duration = len(images) * (display_time + transition_time)
-    total_frames = int(duration * fps)
-
-    print(f"\nGenerowanie slideshow (prędkość: {speed}x, czas: {duration:.1f}s)...")
-
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-    if not out.isOpened():
-        print(f"Błąd: Nie można utworzyć pliku wideo: {output_path}")
-        sys.exit(1)
+    print(f"Wczytano {len(images)} zdjec.")
 
     random.shuffle(images)
 
-    frame_count = 0
-    image_index = 0
+    widths = [img.shape[1] for img in images]
+    positions = []
+    current_pos = 0
+    for w in widths:
+        positions.append(current_pos)
+        current_pos += w
+    total_width = current_pos
 
-    while frame_count < total_frames:
-        current_img = images[image_index % len(images)]
-        next_img = images[(image_index + 1) % len(images)]
+    fps = 30
 
-        display_frames = min(frames_per_image, total_frames - frame_count)
-        for _ in range(display_frames):
-            out.write(current_img)
-            frame_count += 1
-            if frame_count >= total_frames:
-                break
+    base_pixels_per_second = 200
+    pixels_per_frame = max(1, int((base_pixels_per_second * speed) / fps))
 
-        if frame_count >= total_frames:
-            break
+    total_scroll = total_width - frame_size
+    if total_scroll <= 0:
+        total_scroll = 1
 
-        trans_frames = min(transition_frames, total_frames - frame_count)
-        for i in range(trans_frames):
-            progress = (i + 1) / transition_frames
-            frame = create_transition_frame(current_img, next_img, progress)
-            out.write(frame)
-            frame_count += 1
-            if frame_count >= total_frames:
-                break
+    total_frames = max(1, total_scroll // pixels_per_frame)
+    duration = total_frames / fps
 
-        image_index += 1
+    print(f"Generowanie slideshow (predkosc: {speed}x, czas: {duration:.1f}s)...")
 
-        if image_index % len(images) == 0:
-            random.shuffle(images)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_size, frame_size))
 
-        progress_pct = (frame_count / total_frames) * 100
-        bar_length = 40
-        filled = int(bar_length * frame_count / total_frames)
-        bar = "█" * filled + "░" * (bar_length - filled)
-        print(f"\r  [{bar}] {progress_pct:.1f}%", end="", flush=True)
+    if not out.isOpened():
+        print(f"Blad: Nie mozna utworzyc pliku wideo: {output_path}")
+        sys.exit(1)
+
+    for frame_idx in range(total_frames):
+        x_offset = frame_idx * pixels_per_frame
+
+        if x_offset + frame_size > total_width:
+            x_offset = total_width - frame_size
+
+        frame = np.zeros((frame_size, frame_size, 3), dtype=np.uint8)
+
+        for i, img in enumerate(images):
+            img_start = positions[i]
+            img_end = img_start + widths[i]
+
+            if img_end <= x_offset or img_start >= x_offset + frame_size:
+                continue
+
+            src_start = max(0, x_offset - img_start)
+            src_end = min(widths[i], x_offset + frame_size - img_start)
+
+            dst_start = max(0, img_start - x_offset)
+            dst_end = dst_start + (src_end - src_start)
+
+            frame[:, dst_start:dst_end] = img[:, src_start:src_end]
+
+        out.write(frame)
 
     out.release()
-    print(f"\n\n✓ Zapisano: {output_path}")
+    print(f"Zapisano: {output_path}")
     print(f"  Rozmiar: {os.path.getsize(output_path) / (1024 * 1024):.2f} MB")
 
 
@@ -149,34 +193,37 @@ def main():
     args = parse_arguments()
 
     if args.speed <= 0:
-        print("Błąd: Prędkość musi być większa od 0!")
+        print("Blad: Predkosc musi byc wieksza od 0!")
         sys.exit(1)
 
-    valid_paths = []
-    all_potential_paths = []
+    coin_counts = {
+        "1gr": args.gr1,
+        "2gr": args.gr2,
+        "5gr": args.gr5,
+        "10gr": args.gr10,
+        "20gr": args.gr20,
+        "50gr": args.gr50,
+        "1zl": args.zl1,
+        "2zl": args.zl2,
+        "5zl": args.zl5,
+        "wrong": args.wrong,
+    }
 
-    for item in args.images:
-        found_paths = glob.glob(item)
-        if found_paths:
-            all_potential_paths.extend(found_paths)
-        else:
-            all_potential_paths.append(item)
+    all_images = []
+    for coin_type, count in coin_counts.items():
+        if count > 0:
+            folder = COIN_FOLDERS[coin_type]
+            images = get_images_from_folder(folder, count)
+            all_images.extend(images)
+            if images:
+                print(f"  {coin_type}: {len(images)} zdjec")
 
-    unique_paths = set(all_potential_paths)
-
-    for path in sorted(list(unique_paths)):
-        if os.path.isfile(path):
-            valid_paths.append(path)
-        else:
-            if not glob.escape(path) == path:
-                continue
-            print(f"Ostrzeżenie: Plik nie istnieje: {path}")
-
-    if len(valid_paths) < 2:
-        print("Błąd: Podaj minimum 2 istniejące pliki zdjęć!")
+    if not all_images:
+        print("Blad: Nie wybrano zadnych monet!")
+        print("Uzyj argumentow takich jak -1gr 5 -2gr 3 aby wybrac monety.")
         sys.exit(1)
 
-    generate_slideshow(valid_paths, args.speed)
+    generate_slideshow(all_images, args.speed)
 
 
 if __name__ == "__main__":
