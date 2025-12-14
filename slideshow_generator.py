@@ -119,8 +119,9 @@ def generate_slideshow(image_paths: list, speed: float):
         try:
             img = load_and_resize_image(path, frame_size)
             images.append(img)
+            print(f"{path}")
         except ValueError as e:
-            print(f"  Blad: {e}")
+            print(f"{e}")
 
     if len(images) < 1:
         print("Blad: Brak poprawnych zdjec!")
@@ -185,7 +186,7 @@ def generate_slideshow(image_paths: list, speed: float):
         out.write(frame)
 
     out.release()
-    print(f"Zapisano: {output_path}")
+    print(f"\n\nZapisano: {output_path}")
     print(f"  Rozmiar: {os.path.getsize(output_path) / (1024 * 1024):.2f} MB")
 
 
