@@ -37,6 +37,7 @@ Przykladowe uzycie:
   %(prog)s -s 1.0 -1gr 5 -2gr 3
   %(prog)s -s 2.0 -1zl 10 -wrong 5
   %(prog)s --speed 0.5 -5gr 4 -10gr 4 -20gr 4
+  %(prog)s -r -s 1.0 -1gr 2  # Uzupelni reszte monet losowymi wartosciami
 
 Program wczytuje zdjecia z folderu dataset/test/ i tworzy film
 gdzie monety przewijaja sie poziomo od prawej do lewej strony.
@@ -51,25 +52,31 @@ Zdjecia sa losowo wybierane z odpowiednich folderow i moga sie powtarzac.
         help="Predkosc przewijania (1.0 = normalna, 2.0 = szybsza, 0.5 = wolniejsza)"
     )
 
-    parser.add_argument("-1gr", type=int, default=0, dest="gr1", metavar="N",
+    parser.add_argument(
+        "-r", "--randomize",
+        action="store_true",
+        help="Uzupelnij brakujace liczby monet losowymi wartosciami (0-5)"
+    )
+
+    parser.add_argument("-1gr", type=int, default=None, dest="gr1", metavar="N",
                         help="Liczba monet 1 grosz")
-    parser.add_argument("-2gr", type=int, default=0, dest="gr2", metavar="N",
+    parser.add_argument("-2gr", type=int, default=None, dest="gr2", metavar="N",
                         help="Liczba monet 2 grosze")
-    parser.add_argument("-5gr", type=int, default=0, dest="gr5", metavar="N",
+    parser.add_argument("-5gr", type=int, default=None, dest="gr5", metavar="N",
                         help="Liczba monet 5 groszy")
-    parser.add_argument("-10gr", type=int, default=0, dest="gr10", metavar="N",
+    parser.add_argument("-10gr", type=int, default=None, dest="gr10", metavar="N",
                         help="Liczba monet 10 groszy")
-    parser.add_argument("-20gr", type=int, default=0, dest="gr20", metavar="N",
+    parser.add_argument("-20gr", type=int, default=None, dest="gr20", metavar="N",
                         help="Liczba monet 20 groszy")
-    parser.add_argument("-50gr", type=int, default=0, dest="gr50", metavar="N",
+    parser.add_argument("-50gr", type=int, default=None, dest="gr50", metavar="N",
                         help="Liczba monet 50 groszy")
-    parser.add_argument("-1zl", type=int, default=0, dest="zl1", metavar="N",
+    parser.add_argument("-1zl", type=int, default=None, dest="zl1", metavar="N",
                         help="Liczba monet 1 zloty")
-    parser.add_argument("-2zl", type=int, default=0, dest="zl2", metavar="N",
+    parser.add_argument("-2zl", type=int, default=None, dest="zl2", metavar="N",
                         help="Liczba monet 2 zlote")
-    parser.add_argument("-5zl", type=int, default=0, dest="zl5", metavar="N",
+    parser.add_argument("-5zl", type=int, default=None, dest="zl5", metavar="N",
                         help="Liczba monet 5 zlotych")
-    parser.add_argument("-wrong", type=int, default=0, dest="wrong", metavar="N",
+    parser.add_argument("-wrong", type=int, default=None, dest="wrong", metavar="N",
                         help="Liczba niepoprawnych monet")
 
     return parser.parse_args()
@@ -125,6 +132,7 @@ def load_and_resize_image(image_path: str, target_height: int) -> np.ndarray:
 def generate_slideshow(image_paths: list, speed: float):
     frame_size = 720
     output_path = "slideshow.mp4"
+    blank_image_path = "blank.jpg"
 
     print(f"Wczytywanie {len(image_paths)} zdjec...")
 
@@ -144,6 +152,17 @@ def generate_slideshow(image_paths: list, speed: float):
     print(f"Wczytano {len(images)} zdjec.")
 
     random.shuffle(images)
+
+    try:
+        blank_img_raw = cv2.imread(blank_image_path)
+        if blank_img_raw is None:
+            raise FileNotFoundError(f"Nie znaleziono pliku: {blank_image_path}")
+        blank_img = cv2.resize(blank_img_raw, (frame_size, frame_size), interpolation=cv2.INTER_LANCZOS4)
+        images.insert(0, blank_img)
+        images.append(blank_img)
+    except (FileNotFoundError, cv2.error) as e:
+        print(f"Ostrzezenie: Nie mozna dodac obrazu startowego/koncowego ({blank_image_path}): {e}")
+
 
     widths = [img.shape[1] for img in images]
     positions = []
@@ -210,6 +229,24 @@ def main():
     if args.speed <= 0:
         print("Blad: Predkosc musi byc wieksza od 0!")
         sys.exit(1)
+
+    coin_arg_dests = {
+        "gr1": "1gr", "gr2": "2gr", "gr5": "5gr", "gr10": "10gr", "gr20": "20gr",
+        "gr50": "50gr", "zl1": "1zl", "zl2": "2zl", "zl5": "5zl", "wrong": "wrong"
+    }
+
+    if args.randomize:
+        print("Uzupełnianie brakujących monet losowymi wartościami (0-5)...")
+        for dest, name in coin_arg_dests.items():
+            if getattr(args, dest) is None:
+                random_value = random.randint(0, 5)
+                setattr(args, dest, random_value)
+                print(f"  - {name}: {random_value}")
+
+    # Ensure all coin counts are integers, defaulting to 0 if not set by user or randomize
+    for dest in coin_arg_dests.keys():
+        if getattr(args, dest) is None:
+            setattr(args, dest, 0)
 
     coin_counts = {
         "1gr": args.gr1,

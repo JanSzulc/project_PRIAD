@@ -1,4 +1,5 @@
 *.keras
 *.pkl
 prepared_data/
+dataset/
 *.mp4
