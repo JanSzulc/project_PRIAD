@@ -1,3 +1,4 @@
 *.keras
 *.pkl
 prepared_data/
+*.mp4
