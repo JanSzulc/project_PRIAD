@@ -76,22 +76,36 @@ Zdjecia sa losowo wybierane z odpowiednich folderow i moga sie powtarzac.
 
 
 def get_images_from_folder(folder_name: str, count: int) -> list:
-    folder_path = os.path.join(DATASET_BASE, folder_name)
+    base_folder = os.path.join(DATASET_BASE, folder_name)
 
-    if not os.path.isdir(folder_path):
-        print(f"Ostrzezenie: Folder nie istnieje: {folder_path}")
+    if not os.path.isdir(base_folder):
+        print(f"Ostrzezenie: Folder nie istnieje: {base_folder}")
         return []
 
-    extensions = ["*.jpg", "*.jpeg", "*.png", "*.bmp"]
-    all_images = []
-    for ext in extensions:
-        all_images.extend(glob.glob(os.path.join(folder_path, ext)))
+    selected_images = []
 
-    if not all_images:
-        print(f"Ostrzezenie: Brak zdjec w folderze: {folder_path}")
-        return []
+    for _ in range(count):
+        # specjalny przypadek: wrong (bez avers/reverse)
+        if folder_name == "wrong":
+            search_folders = [base_folder]
+        else:
+            side = random.choice(["avers", "revers"])
+            search_folders = [os.path.join(base_folder, side)]
 
-    return random.choices(all_images, k=count)
+        images = []
+        for folder in search_folders:
+            if not os.path.isdir(folder):
+                continue
+            for ext in ["*.jpg", "*.jpeg", "*.png", "*.bmp"]:
+                images.extend(glob.glob(os.path.join(folder, ext)))
+
+        if not images:
+            print(f"Ostrzezenie: Brak zdjec w folderze: {search_folders}")
+            continue
+
+        selected_images.append(random.choice(images))
+
+    return selected_images
 
 
 def load_and_resize_image(image_path: str, target_height: int) -> np.ndarray:
