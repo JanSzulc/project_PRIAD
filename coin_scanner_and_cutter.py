@@ -19,7 +19,7 @@ def ensure_clean_dir(directory):
         shutil.rmtree(directory)
     os.makedirs(directory)
 
-def prepare_image_no_resize(img):
+def prepare_image(img):
     if img is None: return None
     
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -98,7 +98,7 @@ def find_coin_by_shape(frame):
 
     return best_coin
 
-def step_1_extract_coins():
+def extract_coins():
     print("\nSKANOWANIE WIDEO I WYCINANIE")
     ensure_clean_dir(OUTPUT_DIR)
     
@@ -135,7 +135,7 @@ def step_1_extract_coins():
                     
                     strip = frame[0:frame_height, cut_x1:cut_x2]
                     
-                    final_img = prepare_image_no_resize(strip)
+                    final_img = prepare_image(strip)
                     
                     if final_img is not None:
                         filename = os.path.join(OUTPUT_DIR, f"coin_{count:04d}.jpg")
@@ -166,7 +166,7 @@ def get_class_names(num_classes):
             expanded.append(f"{nom}_rewers")
     return sorted(expanded)
 
-def step_2_classify_and_count():
+def classify_and_count():
     print("\nKLASYFIKACJA I LICZENIE")
     
     if not os.path.exists(MODEL_PATH):
@@ -226,9 +226,9 @@ def step_2_classify_and_count():
     print(f"RAZEM WARTOŚĆ: {total_pln:.2f} PLN")
 
 if __name__ == "__main__":
-    num_extracted = step_1_extract_coins()
+    num_extracted = extract_coins()
     
     if num_extracted > 0:
-        step_2_classify_and_count()
+        classify_and_count()
     else:
         print("Nie wykryto żadnych monet w wideo")
