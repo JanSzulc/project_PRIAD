@@ -130,7 +130,7 @@ def load_and_resize_image(image_path: str, target_height: int) -> np.ndarray:
 
 
 def generate_slideshow(image_paths: list, speed: float):
-    frame_size = 720
+    frame_size = 512
     output_path = "slideshow.mp4"
     blank_image_path = "blank.jpg"
 

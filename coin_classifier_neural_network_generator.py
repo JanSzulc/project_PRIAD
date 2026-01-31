@@ -28,40 +28,41 @@ def prepare_single_image(img_path):
     h, s, v = cv2.split(hsv)
     blurred = cv2.GaussianBlur(v, (11, 11), 0)
     _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
     kernel = np.ones((7,7), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if contours:
         c = max(contours, key=cv2.contourArea)
+        
         (x, y), radius = cv2.minEnclosingCircle(c)
-        cX, cY = int(x), int(y)
+        center = (int(x), int(y))
         radius = int(radius * 1.05)
+        
         mask_circle = np.zeros_like(v)
-        cv2.circle(mask_circle, (cX, cY), radius, 255, -1)
+        cv2.circle(mask_circle, center, radius, 255, -1)
+        
         coin_on_black = cv2.bitwise_and(img, img, mask=mask_circle)
-        crop_size = 260
-        half_size = crop_size // 2
-        square_canvas = np.zeros((crop_size, crop_size, 3), dtype=np.uint8)
-        x1 = cX - half_size
-        y1 = cY - half_size
-        x2 = cX + half_size
-        y2 = cY + half_size
-        img_h, img_w = coin_on_black.shape[:2]
-        src_x1 = max(0, x1)
-        src_y1 = max(0, y1)
-        src_x2 = min(img_w, x2)
-        src_y2 = min(img_h, y2)
-        dst_x1 = max(0, -x1)
-        dst_y1 = max(0, -y1)
-        copy_w = src_x2 - src_x1
-        copy_h = src_y2 - src_y1
-        if copy_w > 0 and copy_h > 0:
-            square_canvas[dst_y1:dst_y1+copy_h, dst_x1:dst_x1+copy_w] = coin_on_black[src_y1:src_y2, src_x1:src_x2]
-        resized = cv2.resize(square_canvas, TARGET_IMAGE_SIZE, interpolation=cv2.INTER_AREA)
-        #show_step("Przygotowany Obraz", resized)
-        return resized
+
+        x_rect, y_rect, w_rect, h_rect = cv2.boundingRect(c)
+        
+        coin_crop = coin_on_black[y_rect:y_rect+h_rect, x_rect:x_rect+w_rect]
+
+        target_h, target_w = TARGET_IMAGE_SIZE
+        final_canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+        
+        dst_x = (target_w - w_rect) // 2
+        dst_y = (target_h - h_rect) // 2
+        
+        if dst_x < 0 or dst_y < 0:
+             return None 
+
+        final_canvas[dst_y:dst_y+h_rect, dst_x:dst_x+w_rect] = coin_crop
+        
+        return final_canvas
     else:
         return None
 
